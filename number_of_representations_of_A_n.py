@@ -36,7 +36,7 @@ def get_gen_func(part, X):
 def find_the_matrix(D):
     PART = [part.copy() for part in partitions(D)]
     PART_list = [change_type(i) for i in PART]
-    X = sp.symbols('x:10')
+    X = sp.symbols('x:{}'.format(D+1))
     A = []
     d = {PART_list[i]:i for i in range(len(PART))}
     for i in range(len(PART)):
