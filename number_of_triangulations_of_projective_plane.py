@@ -94,8 +94,8 @@ def smooth(y, box_pts):
     return y_smooth
 
 x = np.arange(len(Ans))
-# y = np.array(Ans)
-y = np.array(ABCD)
+y = np.array(Ans)
+# y = np.array(ABCD)
 # y = np.array(Z)
 
 fig, ax = plt.subplots()
