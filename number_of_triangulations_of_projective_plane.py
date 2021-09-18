@@ -41,13 +41,21 @@ def weight(a, b, c, d):
     else: # p and q and r
         return 1
 
+def partial_sum(a):
+    b = np.zeros_like(a)
+    s = 0
+    for i in range(len(a)):
+        s += a[i]
+        b[i] = s
+    return b
+
 """ Want to calculate the number of a, b, c, d > 0 \in \mathbb
 Z, z \in \mathbb Z + \omega \mathbb Z, such that |z|^2 (ab +
 ac + ad + bc + bd + cd) = N
 Want to output a list w/ such numbers for all N < N_0
 """
 
-N = 10000
+N = 1000
 Ans = [0] * (N + 1)
 Z = [0] * (N + 1) # value of |z|^2
 ABCD = [0] * (N + 1) # value of q(a,b,c,d)
@@ -86,28 +94,42 @@ for i in range(1, sN + 1):
     for j in range(sN + 1, N//i + 1):
         Ans[i * j] += Z[i] * ABCD[j] + Z[j] * ABCD[i] 
 
-# Moving average
 
 def smooth(y, box_pts):
+    # Moving average
     box = np.ones(box_pts)/box_pts
     y_smooth = np.convolve(y, box, mode='same')
     return y_smooth
 
-x = np.arange(len(Ans))
-y = np.array(Ans)
-# y = np.array(ABCD)
-# y = np.array(Z)
-
 fig, ax = plt.subplots()
+x = np.arange(len(Ans))
+
+# y = np.array(Ans)
+# ax.set(title = '|z|^2 (ab + ac + ad + bc + bd + cd) = N')
+y = np.array(ABCD)
+ax.set(title = 'ab + ac + ad + bc + bd + cd = N')
+# y = np.array(Z)
+# ax.set(title = '|z|^2 = N')
+y = partial_sum(y)
+ax.set(title = 'ab + ac + ad + bc + bd + cd <= N')
+
 ax.plot(x, y, label = 'initial')
-ax.plot(x, smooth(y,20), label = 'smoothed')
+# ax.plot(x, smooth(y,20), label = 'smoothed')
 
-reg = LinearRegression(fit_intercept = False).fit(x.reshape(-1, 1), y)
-print('The coeffitient of the line: ', *reg.coef_)
+# reg = LinearRegression(fit_intercept = False).fit(x.reshape(-1, 1), y)
+# print('The coeffitient of the line: ', *reg.coef_)
 
-ax.plot(x, reg.predict(x.reshape(-1, 1)), label = 'best line')
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.pipeline import make_pipeline
+from sklearn.linear_model import LinearRegression
+
+polyreg=make_pipeline(PolynomialFeatures(2),LinearRegression()).fit(x.reshape(-1, 1), y)
+print('The coeffitient of the quadratic: ', *polyreg['linearregression'].coef_)
+print('The quadratic: ', *polyreg['polynomialfeatures'].powers_)
+print('The values at -1, 0, 1: ', polyreg.predict(np.array([-1, 0, 1]).reshape(-1,1)))
+
+# ax.plot(x, reg.predict(x.reshape(-1, 1)), label = 'best line')
+ax.plot(x, polyreg.predict(x.reshape(-1, 1)), label = 'best quadratic poly')
 
 ax.legend()
-ax.set(title = '|z|^2 (ab + ac + ad + bc + bd + cd)')
 plt.show()
-
