@@ -55,7 +55,7 @@ ac + ad + bc + bd + cd) = N
 Want to output a list w/ such numbers for all N < N_0
 """
 
-N = 1000
+N = 10000
 Ans = [0] * (N + 1)
 Z = [0] * (N + 1) # value of |z|^2
 ABCD = [0] * (N + 1) # value of q(a,b,c,d)
@@ -114,22 +114,41 @@ y = partial_sum(y)
 ax.set(title = 'ab + ac + ad + bc + bd + cd <= N')
 
 ax.plot(x, y, label = 'initial')
+
+"""I want to find alpha such that alpha * N^2
+approximates my y the best
+Use np.linalg.lstsq for that
+to solve y = squares * alpha"""
+def find_quadr_alpha(y):
+    squares = np.arange(len(y))**2
+    alpha = np.linalg.lstsq(squares[len(y)//2:].reshape(-1, 1), y[len(y)//2:], rcond = None)[0][0]
+    return alpha
+
+alpha = find_quadr_alpha(y)
+ax.plot(x, alpha * x**2, label = 'best quardatic')
+print(alpha)
+
+
+
+
+
+
 # ax.plot(x, smooth(y,20), label = 'smoothed')
 
 # reg = LinearRegression(fit_intercept = False).fit(x.reshape(-1, 1), y)
 # print('The coeffitient of the line: ', *reg.coef_)
 
-from sklearn.preprocessing import PolynomialFeatures
-from sklearn.pipeline import make_pipeline
-from sklearn.linear_model import LinearRegression
-
-polyreg=make_pipeline(PolynomialFeatures(2),LinearRegression()).fit(x.reshape(-1, 1), y)
-print('The coeffitient of the quadratic: ', *polyreg['linearregression'].coef_)
-print('The quadratic: ', *polyreg['polynomialfeatures'].powers_)
-print('The values at -1, 0, 1: ', polyreg.predict(np.array([-1, 0, 1]).reshape(-1,1)))
+# from sklearn.preprocessing import PolynomialFeatures
+# from sklearn.pipeline import make_pipeline
+# from sklearn.linear_model import LinearRegression
+# 
+# polyreg=make_pipeline(PolynomialFeatures(2),LinearRegression()).fit(x.reshape(-1, 1), y)
+# print('The coeffitient of the quadratic: ', *polyreg['linearregression'].coef_)
+# print('The quadratic: ', *polyreg['polynomialfeatures'].powers_)
+# print('The values at -1, 0, 1: ', polyreg.predict(np.array([-1, 0, 1]).reshape(-1,1)))
 
 # ax.plot(x, reg.predict(x.reshape(-1, 1)), label = 'best line')
-ax.plot(x, polyreg.predict(x.reshape(-1, 1)), label = 'best quadratic poly')
+# ax.plot(x, polyreg.predict(x.reshape(-1, 1)), label = 'best quadratic poly')
 
 ax.legend()
 plt.show()
