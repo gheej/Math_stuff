@@ -1,10 +1,15 @@
+N = 3000
+
 from math import isqrt
-from itertools import product
+from itertools import product, chain
 from collections import Counter
 
 import numpy as np
+import itertools
 from matplotlib import pyplot as plt
 from sklearn.linear_model import LinearRegression
+from numpy.lib.stride_tricks import sliding_window_view
+from sympy.ntheory import factorint
 
 
 def farey_sequence(n: int):
@@ -20,6 +25,7 @@ def q(a, b, c, d):
     return a * b + a * c + a * d + b * c + b * d + c * d
 
 def weight(a, b, c, d):
+    return 1
     """Input: a \ge b \ge c \ge d
     Output: 4! = 24 if a > b > c > d
     otherwise divide to the stabilizer """
@@ -49,19 +55,48 @@ def partial_sum(a):
         b[i] = s
     return b
 
+def moving_average(y, window_shape):
+    return np.sum(sliding_window_view(y, window_shape), axis = 1)/window_shape
+
+def moving_max(y, window_shape):
+    b = sliding_window_view(y, window_shape)
+    ind_b = sliding_window_view(np.arange(len(y)), window_shape)
+    c = np.argmax(b, axis = 1)
+    d = [i for i, j in itertools.groupby(ind_b[[tuple(i) for i in np.vstack((np.arange(len(c)), c))]])]
+    return d
+
+def moving_min(y, window_shape):
+    b = sliding_window_view(y, window_shape)
+    ind_b = sliding_window_view(np.arange(len(y)), window_shape)
+    c = np.argmin(b, axis = 1)
+    d = [i for i, j in itertools.groupby(ind_b[[tuple(i) for i in np.vstack((np.arange(len(c)), c))]])]
+    return d
+
+def find_quadr_alpha(y):
+    squares = np.arange(len(y))**2
+    alpha = np.linalg.lstsq(squares[len(y)//2:].reshape(-1, 1), y[len(y)//2:], rcond = None)[0][0]
+    return alpha
+
+def factor(y):
+    ans = []
+    for a in y:
+        b = factorint(a)
+        ans.append(list(chain(*[[i]*b[i] for i in b])))
+    return ans
+
 """ Want to calculate the number of a, b, c, d > 0 \in \mathbb
 Z, z \in \mathbb Z + \omega \mathbb Z, such that |z|^2 (ab +
 ac + ad + bc + bd + cd) = N
 Want to output a list w/ such numbers for all N < N_0
 """
 
-N = 10000
 Ans = [0] * (N + 1)
 Z = [0] * (N + 1) # value of |z|^2
 ABCD = [0] * (N + 1) # value of q(a,b,c,d)
 sN = isqrt(N) # floor of sqtr N
-Z1 = [a^2 + a * b + b^2 for a, b in farey_sequence(sN)]
+Z1 = [a**2 - a * b + b**2 for a, b in farey_sequence(sN)][:-1] #(0 \le a < b)
 Z1 = Counter(Z1)
+
 for i in Z1:
     if i < len(Z):
         Z[i] = Z1[i]
@@ -95,23 +130,21 @@ for i in range(1, sN + 1):
         Ans[i * j] += Z[i] * ABCD[j] + Z[j] * ABCD[i] 
 
 
-def smooth(y, box_pts):
-    # Moving average
-    box = np.ones(box_pts)/box_pts
-    y_smooth = np.convolve(y, box, mode='same')
-    return y_smooth
 
+
+# fig, axes = plt.subplots(1, 3)
+# ax, ax2, ax3 = axes
 fig, ax = plt.subplots()
+
 x = np.arange(len(Ans))
 
 # y = np.array(Ans)
-# ax.set(title = '|z|^2 (ab + ac + ad + bc + bd + cd) = N')
 y = np.array(ABCD)
-ax.set(title = 'ab + ac + ad + bc + bd + cd = N')
+# ax.set(title = 'ab + ac + ad + bc + bd + cd = N')
 # y = np.array(Z)
 # ax.set(title = '|z|^2 = N')
 y = partial_sum(y)
-ax.set(title = 'ab + ac + ad + bc + bd + cd <= N')
+ax.set(title = 'ab + ac + ad + bc + bd + cd <= N', xlabel = 'N', ylabel = 'Number of solutions')
 
 ax.plot(x, y, label = 'initial')
 
@@ -119,36 +152,42 @@ ax.plot(x, y, label = 'initial')
 approximates my y the best
 Use np.linalg.lstsq for that
 to solve y = squares * alpha"""
-def find_quadr_alpha(y):
-    squares = np.arange(len(y))**2
-    alpha = np.linalg.lstsq(squares[len(y)//2:].reshape(-1, 1), y[len(y)//2:], rcond = None)[0][0]
-    return alpha
 
 alpha = find_quadr_alpha(y)
-ax.plot(x, alpha * x**2, label = 'best quardatic')
+ax.plot(x, alpha * x**2, label = 'best quardatic ' + str(round(alpha, 2)) + ' N^2')
 print(alpha)
 
-
-
-
-
-
-# ax.plot(x, smooth(y,20), label = 'smoothed')
-
+#  print(np.vstack((x, y, ABCD, Z))[:, :50].T)
+# 
 # reg = LinearRegression(fit_intercept = False).fit(x.reshape(-1, 1), y)
 # print('The coeffitient of the line: ', *reg.coef_)
-
-# from sklearn.preprocessing import PolynomialFeatures
-# from sklearn.pipeline import make_pipeline
-# from sklearn.linear_model import LinearRegression
 # 
-# polyreg=make_pipeline(PolynomialFeatures(2),LinearRegression()).fit(x.reshape(-1, 1), y)
-# print('The coeffitient of the quadratic: ', *polyreg['linearregression'].coef_)
-# print('The quadratic: ', *polyreg['polynomialfeatures'].powers_)
-# print('The values at -1, 0, 1: ', polyreg.predict(np.array([-1, 0, 1]).reshape(-1,1)))
+# window = 200
+# min_ind = moving_min(y, window)
+# max_ind = moving_max(y, window)
+# 
+# 
+# ax.plot(x[window//2:-window//2+1], moving_average(y, window), label = 'local average')
+# print("mins: ", *min_ind)
+# ax.plot(min_ind, y[min_ind], label = 'local min')
+# print("maxs: ", *max_ind)
+# ax.plot(max_ind, y[max_ind], label = 'local max')
+# 
+# 
+# print("!!!")
+# for i in factor(min_ind):
+#     print(*i)
+# print("!!!!")
+# for i in factor(max_ind):
+#     print(*i)
+# 
+# const = 50
+# 
+# ax2.hist([i for i in list(chain(*factor(min_ind))) if i < const], bins = const)
+# ax2.set(title = 'mins')
+# ax3.hist([i for i in list(chain(*factor(max_ind))) if i < const], bins = const)
+# ax2.set(title = 'maxs')
 
-# ax.plot(x, reg.predict(x.reshape(-1, 1)), label = 'best line')
-# ax.plot(x, polyreg.predict(x.reshape(-1, 1)), label = 'best quadratic poly')
 
 ax.legend()
 plt.show()
