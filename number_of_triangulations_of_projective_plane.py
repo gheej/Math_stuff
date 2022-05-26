@@ -1,4 +1,4 @@
-N = 3000
+N = 100000
 
 from math import isqrt
 from itertools import product, chain
@@ -25,7 +25,6 @@ def q(a, b, c, d):
     return a * b + a * c + a * d + b * c + b * d + c * d
 
 def weight(a, b, c, d):
-    return 1
     """Input: a \ge b \ge c \ge d
     Output: 4! = 24 if a > b > c > d
     otherwise divide to the stabilizer """
@@ -84,22 +83,45 @@ def factor(y):
         ans.append(list(chain(*[[i]*b[i] for i in b])))
     return ans
 
+"""Now we apply the divisor convolution
+If i * j \le N there are 3 possibilies:
+    1) i \le sN and j \le sN
+    2) i \le sN and j > sN
+    3) i > sN and j \le sN
+"""
+def convolution(Z, ABCD):
+    assert len(Z) == len(ABCD)
+    N = len(Z) - 1
+    sN = isqrt(N) # floor of sqtr N
+    Ans = np.zeros_like(Z)
+    for i, j in product(range(1, sN + 1), repeat = 2):
+        Ans[i * j] += Z[i] * ABCD[j]
+    for i in range(1, sN + 1):
+        for j in range(sN + 1, N//i + 1):
+            Ans[i * j] += Z[i] * ABCD[j] + Z[j] * ABCD[i] 
+    return Ans
+
 """ Want to calculate the number of a, b, c, d > 0 \in \mathbb
 Z, z \in \mathbb Z + \omega \mathbb Z, such that |z|^2 (ab +
 ac + ad + bc + bd + cd) = N
 Want to output a list w/ such numbers for all N < N_0
 """
 
-Ans = [0] * (N + 1)
-Z = [0] * (N + 1) # value of |z|^2
-ABCD = [0] * (N + 1) # value of q(a,b,c,d)
 sN = isqrt(N) # floor of sqtr N
-Z1 = [a**2 - a * b + b**2 for a, b in farey_sequence(sN)][:-1] #(0 \le a < b)
-Z1 = Counter(Z1)
+Z1_0 = Counter([a**2 - a * b + b**2 for a, b in farey_sequence(sN) if (a + b)%3 == 0])
+Z1_12 = Counter([a**2 - a * b + b**2 for a, b in farey_sequence(sN) if (a + b)%3 != 0][:-1])
 
-for i in Z1:
-    if i < len(Z):
-        Z[i] = Z1[i]
+Z_0 = [0] * (N + 1) # value of |z|^2
+Z_12 = [0] * (N + 1) # value of |z|^2
+for i in Z1_0:
+    if i < len(Z_0):
+        Z_0[i] = Z1_0[i]
+for i in Z1_12:
+    if i < len(Z_12):
+        Z_12[i] = Z1_12[i]
+
+ABCD_0 = [0] * (N + 1) # value of q(a,b,c,d)
+ABCD_12 = [0] * (N + 1) # value of q(a,b,c,d)
 # a \ge b \ge c \ge d
 a = 1
 while a <= (N - 3) // 3:
@@ -110,53 +132,47 @@ while a <= (N - 3) // 3:
             d = 1
             while d <= min(c, (N - a * b - a * c - b * c) // (a + b + c)):
                 # a \ge b \ge c \ge d \ge 1
-                ABCD[q(a, b, c, d)] += weight(a, b, c, d)
+                ABCD_0[q(a, b, c, d)] += weight(a, b, c, d)
+                if a%3 == b%3 and b%3 == c%3 and c%3 == d%3:
+                    ABCD_12[q(a, b, c, d)] += weight(a, b, c, d)
                 d += 1
             c += 1
         b += 1
     a += 1
 
-"""Now we apply the divisor convolution
-If i * j \le N there are 3 possibilies:
-    1) i \le sN and j \le sN
-    2) i \le sN and j > sN
-    3) i > sN and j \le sN
-"""
 
-for i, j in product(range(1, sN + 1), repeat = 2):
-    Ans[i * j] += Z[i] * ABCD[j]
-for i in range(1, sN + 1):
-    for j in range(sN + 1, N//i + 1):
-        Ans[i * j] += Z[i] * ABCD[j] + Z[j] * ABCD[i] 
+Ans = [0] * (N + 1)
+Ans = convolution(Z_0, ABCD_0) +  convolution(Z_12, ABCD_12)
 
+# print(np.vstack((Z_0[:40], Z_12[:40], np.arange(40))).T)
 
-
-
-# fig, axes = plt.subplots(1, 3)
-# ax, ax2, ax3 = axes
 fig, ax = plt.subplots()
-
+ 
 x = np.arange(len(Ans))
-
-# y = np.array(Ans)
-y = np.array(ABCD)
-# ax.set(title = 'ab + ac + ad + bc + bd + cd = N')
-# y = np.array(Z)
-# ax.set(title = '|z|^2 = N')
+y = np.array(Ans)
+ 
 y = partial_sum(y)
-ax.set(title = 'ab + ac + ad + bc + bd + cd <= N', xlabel = 'N', ylabel = 'Number of solutions')
-
-ax.plot(x, y, label = 'initial')
+# ax.set(title = '$\\#\\{|z|^2 (ab + ac + ad + bc + bd + cd) \\leq N\\} - \\alpha N^2$', xlabel = 'N', ylabel = 'Number of solutions')
+# 
+alpha = 0.20874321250560157071750716031497138622997487996283
 
 """I want to find alpha such that alpha * N^2
 approximates my y the best
 Use np.linalg.lstsq for that
 to solve y = squares * alpha"""
 
-alpha = find_quadr_alpha(y)
-ax.plot(x, alpha * x**2, label = 'best quardatic ' + str(round(alpha, 2)) + ' N^2')
-print(alpha)
+# alpha = find_quadr_alpha(y)
+u = (- 2.25 * y + alpha * x**2) / x**(3/2)
+ax.plot(x, u)
+ax.plot(x, np.ones_like(u) * u[-1])
+# ax.plot(x, (2.25 * y - alpha * x**2) / x**(3/2), label ='$\\#\\{ \\frac{2}{3} |z|^2 (ab + ac + ad + bc + bd + cd) \\leq N\\} / N^2$')
+# ax.plot(x, (2.25 * y) / x**2, label ='$f(n) / n^2$')
+# ax.plot(x, np.ones_like(x) * alpha, label = str(round(alpha, 4)))
+# ax.plot(x, 2.25 * y, label = 'Number of triangulations')
+ax.set(xlabel = 'n', title = '$(f(n) - C n^2) / n^{\\frac{3}{2}} \\longrightarrow $' +  str(round(u[-1], 4)))
+# print(alpha)
 
+# ax.plot(x, alpha * x**2, label = 'best quardatic ' + str(round(alpha, 4)) + ' N^2')
 #  print(np.vstack((x, y, ABCD, Z))[:, :50].T)
 # 
 # reg = LinearRegression(fit_intercept = False).fit(x.reshape(-1, 1), y)
